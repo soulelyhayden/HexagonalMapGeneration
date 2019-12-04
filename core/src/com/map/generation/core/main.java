@@ -8,12 +8,14 @@ import com.badlogic.gdx.graphics.PerspectiveCamera;
 import com.badlogic.gdx.graphics.g3d.*;
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
 import com.badlogic.gdx.graphics.g3d.environment.DirectionalShadowLight;
-import com.badlogic.gdx.graphics.g3d.environment.PointLight;
+import com.badlogic.gdx.graphics.g3d.utils.DepthShaderProvider;
 import com.badlogic.gdx.math.Vector3;
-import com.map.generation.tiles.Tile;
-import com.map.generation.tiles.TileSet;
+import com.map.generation.objects.tiles.*;
+import com.map.generation.objects.*;
+import com.map.generation.objects.world.*;
 
 import java.util.ArrayList;
+import java.util.Map;
 
 import static com.badlogic.gdx.graphics.GL20.*;
 
@@ -22,22 +24,24 @@ public class main extends ApplicationAdapter {
 	private Environment environment;
 
 	private PerspectiveCamera cam;
-	private Vector3 point = new Vector3(0,0,0);
-	private Vector3 camDistance = new Vector3(0,50,0);
 
-	private PointLight light;
-	private float lightIntesity = 5000f;
-	private Color lightCol = new Color(0.8f,0.8f,0.8f, 1f);
-	private Vector3 lightDir = new Vector3(-1f,-1f,-0.2f);
+	private Color lightCol = new Color(0.6f,0.6f,0.6f, 1f);
+	private Vector3 lightDir = new Vector3(0.8f,-0.95f,0.8f);
 	private DirectionalShadowLight shadowLight;
 	private ModelBatch shadowBatch;
 
 	private ModelBatch modelBatch;
+	private Ground ground;
+	private Sky sky;
 
-	private final static int scaleVal = 8;
+	private final static int scaleVal = 10;
 	private final static int raiseHeight = 1;
-	private TileSet tileSet = new TileSet(50,2, scaleVal, raiseHeight);
+	private final static int MAP_SIZE = 50;
+	private final static double TILE_SIZE = 0.5;
+	private static Map biome = new Colours().getBiome("standard");
+	private static TileSet tileSet = new TileSet(MAP_SIZE,TILE_SIZE, scaleVal, raiseHeight, biome);
 	private ArrayList<Tile> tiles = new ArrayList<>();
+	private ArrayList<ModelInstance> tileInstance = new ArrayList<>();
 
 	private Input input = new Input();
 
@@ -46,77 +50,84 @@ public class main extends ApplicationAdapter {
 	@Override
 	public void create () {
 		environment = new Environment();
-		environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.4f, 0.4f, 0.4f, 1f));
-		//light = new DirectionalLight().set(lightCol, lightDir);
-		light = new PointLight().set(lightCol, point, lightIntesity);
+		environment.set(new ColorAttribute(ColorAttribute.AmbientLight, 0.2f, 0.2f, 0.2f, 1f));
 
-		environment.add(light);
-		/*environment.add((shadowLight = new DirectionalShadowLight(10000, 10000, 1000f, 1000f, 1f, 1000f))
-				.set(0.3f, 0.3f, 0.3f, -1f, -0.8f,
-						-0.2f));
+		shadowLight = new DirectionalShadowLight(10000, 10000, (float)(MAP_SIZE * 3 * TILE_SIZE), (float)(MAP_SIZE * 3 * TILE_SIZE), 0.1f, 1200f);
+		shadowLight.getCamera().update();
+
+		shadowLight.set(lightCol, lightDir);
+		shadowLight.direction.rotate(Vector3.Y, 180);
+		environment.add(shadowLight);
 		environment.shadowMap = shadowLight;
 
 		modelBatch = new ModelBatch();
-		shadowBatch = new ModelBatch(new DepthShaderProvider());*/
+		shadowBatch = new ModelBatch(new DepthShaderProvider());
 
 		modelBatch = new ModelBatch();
 
 		cam = new PerspectiveCamera(67, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-		cam.position.set(point.add(camDistance));
-		cam.lookAt(point);
+		cam.position.set((int)(MAP_SIZE * TILE_SIZE), (int)(scaleVal * TILE_SIZE * 5), (int)(MAP_SIZE * TILE_SIZE) * 2);
+		cam.direction.y -= Math.sin(90);
+
 		cam.near = 1f;
-		cam.far = 300f;
+		cam.far = 1000f;
 		cam.update();
 
 		tiles = tileSet.getTileSet();
 
-		//model = new Tile(0,0,0,1, 1,Color.GREEN).model;
-
-
-		//instance = new ModelInstance(model);
-
-		//instance.transform.scl(1,2f,1);
-
-
-
-		//camController = new CameraInputController(cam);
-		//Gdx.input.setInputProcessor(camController);
+		ground = new Ground(MAP_SIZE, TILE_SIZE, biome);
+		sky = new Sky(MAP_SIZE, TILE_SIZE, biome);
 
 		Gdx.input.setInputProcessor(input);
 	}
 
 	@Override
 	public void render () {
-
 		Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+		Gdx.gl.glClearColor(0, 0, 0, 1);
 		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 		Gdx.gl.glCullFace(GL_NONE);
 		Gdx.gl.glFrontFace(GL_CW);
 
 
+		camControl();
+		update();
+		lightRender();
+		instanceRender();
+	}
 
-
-		Vector3 dir = new Vector3(0,0,0);
-		dir.add(cam.position);
-		dir.add(camDistance);
-		dir.mulAdd(camDistance,2);
-		//double new_y = (current_x-center_x) * Math.sin(angle) + (current_y-center_y) * Math.cos(angle) + center_y;
-
-
-		light.position.lerp(dir, 0.08f);
-
-		/*shadowLight.begin(Vector3.Zero, cam.direction);
-		shadowBatch.begin(shadowLight.getCamera());
-
-		for (ModelInstance in : tileInstances) {
-			shadowBatch.render(in);
-		}
-
-		shadowBatch.end();
-		shadowLight.end();*/
-
+	private void instanceRender() {
 		modelBatch.begin(cam);
 
+		ModelInstance groundModel = new ModelInstance(ground.getGround());
+		groundModel.materials.get(0).set(ColorAttribute.createDiffuse(ground.getCol()));
+		modelBatch.render(groundModel, environment);
+
+		ModelInstance skyModel = new ModelInstance(sky.getSky(), (int)(MAP_SIZE * TILE_SIZE), 0, (int)(MAP_SIZE * TILE_SIZE));
+		skyModel.materials.get(0).set(ColorAttribute.createDiffuse(sky.getCol()));
+		modelBatch.render(skyModel,environment);
+
+		for (ModelInstance model : tileInstance) {
+			modelBatch.render(model, environment);
+		}
+		modelBatch.end();
+	}
+
+	private void lightRender() {
+		shadowLight.begin(Vector3.Zero, cam.direction);
+		shadowBatch.begin(shadowLight.getCamera());
+
+
+		for (ModelInstance model : tileInstance) {
+			shadowBatch.render(model);
+		}
+		shadowBatch.end();
+		shadowLight.end();
+	}
+
+	private void update() {
+		tileInstance.clear();
+		Tile[][] tempTiles = new Tile[MAP_SIZE + 1][MAP_SIZE + 1];
 
 		for (Tile tile : tiles) {
 			tile.update();
@@ -124,21 +135,12 @@ public class main extends ApplicationAdapter {
 			ModelInstance tileModel = new ModelInstance(tile.getModel());
 			tileModel.transform.setToScaling(1,(float)tile.getScale(),1);
 			tileModel.materials.get(0).set(ColorAttribute.createDiffuse(tile.getCol()));
-			modelBatch.render(tileModel, environment);
+
+			tileInstance.add(tileModel);
+			tempTiles[tile.getX()][tile.getZ()] = tile;
 		}
 
-		modelBatch.end();
-
-		update();
-		camControl();
-	}
-
-	public static int getScale() {
-		return scaleVal;
-	}
-
-	private void update() {
-
+		tileSet.setTilesAdjacent(tempTiles);
 	}
 
 	private void camControl() {
@@ -210,5 +212,13 @@ public class main extends ApplicationAdapter {
 
 	@Override
 	public void pause () {
+	}
+
+	public static int getScale() {
+		return scaleVal;
+	}
+
+	public static TileSet getTileSet() {
+		return tileSet;
 	}
 }

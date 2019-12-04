@@ -1,26 +1,19 @@
-package com.map.generation.tiles;
+package com.map.generation.objects.tiles;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.Mesh;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.VertexAttributes.*;
 import com.badlogic.gdx.graphics.g3d.Material;
 import com.badlogic.gdx.graphics.g3d.Model;
-import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute;
-import com.badlogic.gdx.graphics.g3d.attributes.FloatAttribute;
-import com.badlogic.gdx.graphics.g3d.attributes.TextureAttribute;
-import com.badlogic.gdx.graphics.g3d.model.MeshPart;
-import com.badlogic.gdx.graphics.g3d.model.Node;
-import com.badlogic.gdx.graphics.g3d.model.data.ModelMeshPart;
 import com.badlogic.gdx.graphics.g3d.utils.*;
 import com.badlogic.gdx.graphics.g3d.utils.MeshPartBuilder.*;
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder;
-import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.map.generation.core.Functions;
 import com.map.generation.core.main;
+import com.map.generation.objects.Colours;
 
+import java.util.ArrayList;
 import java.util.Map;
 
 public class Tile {
@@ -28,58 +21,75 @@ public class Tile {
     private final Model MODEL;
     private final int sclVAL;
     private double scale;
-    private double heightRange;
     private Map biomeColours;
     private Color col;
     private float sDCol = 0.02f;
     private double waterFloat;
     private final double WATERSPEED = 0.05;
+    private final double EROSION_SPEED = 0.01;
 
     private boolean water = false;
+    private Map ranges;
 
     private Functions fct = new Functions();
+    private int x, z;
 
-     Tile(double x, double y, double z, double r, double h, Map biome) {
+    private double[] colValTemp = new double[]{0, 0, 0};
 
-        this.biomeColours = biome;
-        this.scale = h;
-        this.sclVAL = main.getScale();
-        h = r;
+    private Tile[][] tilesAdj;
+    private ArrayList<Tile> neighbours = new ArrayList<Tile>();;
 
-        final double l = r/2;
-        final double n = (float)Math.sqrt(Math.pow(r,2) - Math.pow(l,2));
+     Tile(int x, int y, int z, double r, double h, Map biome) {
+         this.x = x;
+         this.z = z;
 
-        double[] points =
+         this.biomeColours = biome;
+         this.scale = h;
+         this.sclVAL = main.getScale();
+
+         ranges = new Colours().getBiome("ranges");
+
+         double n = Math.sqrt(Math.pow(r,2) - Math.pow(r/2,2));
+         final double l = r/2;
+
+         double xPos = x * (n * 2);
+         if (z % 2 == 0) { xPos -= n; }
+         double zPos = z * (r + (float)(r / 2));
+         double yPos = y;
+
+         h = r;
+
+         double[] points =
                 {
-                        x, y, z,
-                        x, y, z + r,
-                        x + n, y, z + l,
-                        x + n, y, z - l,
-                        x, y, z - r,
-                        x - n, y, z - l,
-                        x - n, y, z + l,
+                        xPos, yPos, zPos,
+                        xPos, yPos, zPos + r,
+                        xPos + n, yPos, zPos + l,
+                        xPos + n, yPos, zPos - l,
+                        xPos, yPos, zPos - r,
+                        xPos - n, yPos, zPos - l,
+                        xPos - n, yPos, zPos + l,
 
-                        x, y + h, z,
-                        x, y + h, z + r,
-                        x + n, y + h, z + l,
-                        x + n, y + h, z - l,
-                        x, y + h, z - r,
-                        x - n, y + h, z - l,
-                        x - n, y + h, z + l,
+                        xPos, yPos + h, zPos,
+                        xPos, yPos + h, zPos + r,
+                        xPos + n, yPos + h, zPos + l,
+                        xPos + n, yPos + h, zPos - l,
+                        xPos, yPos + h, zPos - r,
+                        xPos - n, yPos + h, zPos - l,
+                        xPos - n, yPos + h, zPos + l,
                 };
 
-        VertexInfo[] vertices = new VertexInfo[14];
+         VertexInfo[] vertices = new VertexInfo[14];
 
-        int p = 0;
-        for (int v = 0; v < vertices.length; v++) {
+         int p = 0;
+         for (int v = 0; v < vertices.length; v++) {
             Vector3 pos = new Vector3((float)points[p], (float)points[p+1], (float)points[p+2]);
             vertices[v] = new VertexInfo().setPos(pos);
             p += 3;
-        }
+         }
 
-        MODEL = buildModel(vertices);
+         MODEL = buildModel(vertices);
 
-        setup();
+         setup();
 
     }
 
@@ -91,30 +101,76 @@ public class Tile {
 
              scale = fct.lerp(WATERSPEED, scale, waterFloat);
          }
+
+        tilesAdj = main.getTileSet().getTilesAdjacent();
+
+
+        double erosion = 0;
+        neighbours.clear();
+        try {
+            neighbours.add(tilesAdj[x - 1][z]);
+            neighbours.add(tilesAdj[x + 1][z]);
+            neighbours.add(tilesAdj[x][z - 1]);
+            neighbours.add(tilesAdj[x][z + 1]);
+            neighbours.add(tilesAdj[x - 1][z - 1]);
+            neighbours.add(tilesAdj[x - 1][z + 1]);
+        }
+        catch(Exception e) {
+            //  Block of code to handle errors
+        }
+        try {
+            for (Tile n : neighbours) {
+                if (n.water) {
+                    erosion += 1;
+                }
+            }
+        } catch(Exception e) {
+                //  Block of code to handle errors
+            }
+
+        erosion += 6 - neighbours.size();
+        //System.out.println(neighbours.size());
+        erosion *= scale;
+
+        erosion = fct.map(erosion,0,6 * sclVAL,0,EROSION_SPEED);
+
+        if (!water) {
+            scale -= erosion;
+            if (scale <= (float)(sclVAL / 5) * (double)ranges.get("water")) {
+                col = gaussianCol((Color)biomeColours.get("water"));
+                water = true;
+            }
+        }
+
+
+
     }
 
+
+
     private void setup() {
-        if (scale <= sclVAL * 0.2) {
+        if (scale <= sclVAL * (double)ranges.get("water")) {
             col = gaussianCol((Color)biomeColours.get("water"));
             water = true;
+            //TileSet tile = new TileSet(5, 5, 5, 5);
         }
-        if (scale > sclVAL * 0.2 && scale <= sclVAL * 0.3) {
-            col = gaussianCol((Color)biomeColours.get("sand"));
+        if (scale > sclVAL * (double)ranges.get("water") && scale <= sclVAL * (double)ranges.get("base")) {
+            col = gaussianCol((Color)biomeColours.get("base"));
         }
-        if (scale > sclVAL * 0.3 && scale <= sclVAL * 0.4) {
-            col = gaussianCol((Color)biomeColours.get("dirt"));
+        if (scale > sclVAL * (double)ranges.get("base") && scale <= sclVAL * (double)ranges.get("trans")) {
+            col = gaussianCol((Color)biomeColours.get("trans"));
         }
-        if (scale > sclVAL * 0.4 && scale <= sclVAL * 0.7) {
-            col = gaussianCol((Color)biomeColours.get("grass"));
+        if (scale > sclVAL * (double)ranges.get("trans") && scale <= sclVAL * (double)ranges.get("main")) {
+            col = gaussianCol((Color)biomeColours.get("main"));
         }
-        if (scale > sclVAL * 0.7 && scale <= sclVAL * 0.95) {
-            col = gaussianCol((Color)biomeColours.get("rock"));
+        if (scale > sclVAL * (double)ranges.get("main") && scale <= sclVAL * (double)ranges.get("mountain")) {
+            col = gaussianCol((Color)biomeColours.get("mountain"));
         }
-        if (scale > sclVAL * 0.95) {
+        if (scale > sclVAL * (double)ranges.get("mountain")) {
             if (fct.random() > 0.5) {
-                col = gaussianCol((Color) biomeColours.get("ice"));
+                col = gaussianCol((Color) biomeColours.get("peak1"));
             } else {
-                col = gaussianCol((Color) biomeColours.get("snow"));
+                col = gaussianCol((Color) biomeColours.get("peak2"));
             }
         }
     }
@@ -137,10 +193,7 @@ public class Tile {
         modelBuilder.begin();
         MeshPartBuilder meshBuilder;
 
-        meshBuilder = modelBuilder.part("part1", GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material());
-
-
-
+        meshBuilder = modelBuilder.part("hexagonalPrism", GL20.GL_TRIANGLES, Usage.Position | Usage.Normal, new Material());
         meshBuilder.triangle(verts[0], verts[1], verts[2]);
         meshBuilder.triangle(verts[0], verts[2], verts[3]);
         meshBuilder.triangle(verts[0], verts[3], verts[4]);
@@ -167,10 +220,10 @@ public class Tile {
 
         meshBuilder.rect(verts[6], verts[13], verts[8], verts[1]);
 
-        //MeshPart part2 = meshBuilder.part("part2", GL20.GL_TRIANGLES);
-        // build the second part
         return modelBuilder.end();
 
+
+        //Experimenting with other ways to build the mesh. This method below seems better, but not working right now.
 
         /*MeshBuilder meshBuilder = new MeshBuilder();
         ModelBuilder modelBuilder = new ModelBuilder();
@@ -205,9 +258,6 @@ public class Tile {
 
         modelBuilder.part("top",
                 top, Usage.Position | Usage.Normal, new Material(ColorAttribute.createDiffuse(col))).mesh.transform(new Matrix4().translate(0, h, 0));
-
-
-
 
         modelBuilder.part("bottom",
                 top,
@@ -248,5 +298,13 @@ public class Tile {
 
     public Color getCol() {
         return col;
+    }
+
+    public int getX() {
+         return x;
+    }
+
+    public int getZ() {
+         return z;
     }
 }

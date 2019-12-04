@@ -6,7 +6,10 @@ import com.map.generation.core.main;
 
 public class DesktopLauncher {
 	public static void main (String[] arg) {
-		LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
-		new LwjglApplication(new main(), config);
+		LwjglApplicationConfiguration cfg = new LwjglApplicationConfiguration();
+		cfg.title = "HexTerrain";
+		cfg.height = 1024;
+		cfg.width = 1920;
+		new LwjglApplication(new main(), cfg);
 	}
 }
