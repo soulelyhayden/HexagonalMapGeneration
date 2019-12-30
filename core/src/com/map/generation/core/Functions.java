@@ -7,6 +7,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import com.badlogic.gdx.graphics.Color;
 
 /*My math functions class. Some of these I recreated based on processing expressions.
+Color functions to work around LibGDX color library.
 Each is pretty self explanatory.
 Perlin noise function was found online and is based on the creative commons attribution of the original function */
 public class Functions {

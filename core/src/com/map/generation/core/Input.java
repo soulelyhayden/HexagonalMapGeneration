@@ -1,11 +1,10 @@
 package com.map.generation.core;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputProcessor;
 
 import static com.badlogic.gdx.Input.Keys.*;
 
-
+//Custom input class for camera control, works better than default camera controller imo
 public class Input implements InputProcessor {
 
     boolean forward = false;
@@ -16,9 +15,6 @@ public class Input implements InputProcessor {
     boolean up = false;
 
     boolean turn = false;
-
-    float xTurn, yTurn;
-
 
     @Override
     public boolean keyDown(int keycode) {
@@ -76,7 +72,6 @@ public class Input implements InputProcessor {
             case (SHIFT_RIGHT):
                 down = false;
                 break;
-
         }
         return true;
     }
